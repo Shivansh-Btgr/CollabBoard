@@ -2,6 +2,8 @@ import React from 'react';
 import { Transition } from '@headlessui/react';
 
 export const Overlay: React.FC<{ show: boolean; text: string }> = ({ show, text }) => {
+  if (!show) return null;
+  
   return (
     <Transition
       show={show}

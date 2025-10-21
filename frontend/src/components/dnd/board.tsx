@@ -122,7 +122,7 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
       case EVENT_POST_CREATE:
         if (success) {
           console.log('Post created:', result);
-          addPost(result);
+          addPost(result.post);
         } else {
           console.error('Post create failed:', error_message);
           toast.error(error_message);
@@ -131,7 +131,7 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
       case EVENT_POST_UPDATE:
         if (success) {
           console.log('Post updated:', result);
-          updatePost({ ...result, typingBy: null });
+          updatePost({ ...result.post, typingBy: null });
         } else {
           console.error('Post update failed:', error_message);
           toast.error(error_message);
@@ -147,7 +147,7 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
       case EVENT_POST_FOCUS:
         if (success) {
           if (result.user.id != user?.id) {
-            updatePost({ id: result.id, typingBy: result.user });
+            updatePost({ id: result.post_id, typingBy: result.user });
           }
         } else {
           toast.error(error_message);
@@ -161,8 +161,10 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
 
   // handleDoubleClick creates a new post
   const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    console.log('Double click detected!', event.target, event.currentTarget);
     if (event.target === event.currentTarget) {
       const { offsetX, offsetY } = event.nativeEvent;
+      console.log('Creating post at:', offsetX, offsetY);
       const newZIndex = highestZ + 1;
       const params = {
         board_id: board.id,
@@ -170,11 +172,34 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
         pos_x: offsetX,
         pos_y: offsetY,
         color: colorSetting,
+        height: POST_HEIGHT,
         z_index: highestZ + 1,
       };
+      console.log('Sending createPostWS with params:', params);
       createPostWS(params, send);
       setHighestZ(newZIndex);
+    } else {
+      console.log('Double click on wrong target, ignoring');
     }
+  };
+
+  // handleCreatePost creates a post at a default position (for button click)
+  const handleCreatePost = () => {
+    const defaultX = 100 + (Object.keys(posts).length * 50) % 500;
+    const defaultY = 100 + Math.floor(Object.keys(posts).length / 10) * 150;
+    const newZIndex = highestZ + 1;
+    const params = {
+      board_id: board.id,
+      content: '',
+      pos_x: defaultX,
+      pos_y: defaultY,
+      color: colorSetting,
+      height: POST_HEIGHT,
+      z_index: newZIndex,
+    };
+    console.log('Creating post via button at:', defaultX, defaultY);
+    createPostWS(params, send);
+    setHighestZ(newZIndex);
   };
 
   const addPost = (post: PostUI) => {
@@ -238,6 +263,21 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
     <div className="flex">
       <Overlay show={showOverlay || !user} text={overlayText} />
       {user ? <Sidebar board={board} width={SIDEBAR_WIDTH} user={user} connectedUsers={connectedUsers} /> : null}
+      
+      {/* Create Post Button */}
+      {user && !showOverlay && (
+        <button
+          onClick={handleCreatePost}
+          className="fixed bottom-8 right-8 btn btn-primary btn-lg btn-circle shadow-xl hover:scale-110 transition-transform"
+          style={{ zIndex: 10001 }}
+          title="Create new post"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      )}
+      
       <div
         ref={drop}
         className="relative sketchbook-bg"

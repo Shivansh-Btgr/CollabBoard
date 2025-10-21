@@ -13,7 +13,7 @@ export type DeletePostParams = {
 };
 
 export type FocusPostParams = {
-  id: string;
+  post_id: string;
   board_id: string;
 };
 

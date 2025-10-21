@@ -52,7 +52,7 @@ export const Post: FC<PostProps> = memo(function Post({
   };
 
   const handleFocus = () => {
-    focusPost({ id, board_id: board.id }, send);
+    focusPost({ post_id: id, board_id: board.id }, send);
   };
 
   // handleChange updates the textarea value and the textarea height
