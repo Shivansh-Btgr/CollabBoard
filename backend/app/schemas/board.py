@@ -23,9 +23,14 @@ class BoardCreate(BoardBase):
     pass
 
 
+class BoardImport(BaseModel):
+    share_code: str
+
+
 class Board(BoardBase):
     id: UUID
     user_id: UUID
+    share_code: str
     created_at: datetime
     updated_at: datetime
 

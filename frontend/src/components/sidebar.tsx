@@ -48,7 +48,7 @@ const Sidebar = ({ width, board, user, connectedUsers }: SidebarProps) => {
 function SidebarMember({ user, isConnected }: { user: User; isConnected: boolean }) {
   return (
     <div key={user.id} className="flex space-x-2 items-center">
-      <Avatar id={user.id} />
+      <Avatar id={user.avatar_seed || user.id} />
       <span className="text-sm" style={{ fontWeight: isConnected ? 700 : 300, color: isConnected ? 'black' : 'gray' }}>
         {user.name}
       </span>

@@ -4,8 +4,14 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 import enum
+import secrets
 
 from app.database import Base
+
+
+def generate_share_code():
+    """Generate a unique 8-character share code"""
+    return secrets.token_urlsafe(6)[:8].upper()
 
 
 class Board(Base):
@@ -14,6 +20,7 @@ class Board(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255))
     description = Column(Text)
+    share_code = Column(String(20), unique=True, nullable=False, default=generate_share_code)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

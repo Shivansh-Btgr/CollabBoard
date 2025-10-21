@@ -10,6 +10,7 @@ export type BoardResponse = {
   id: string;
   name: string;
   description: string;
+  share_code: string;
   user_id: boolean;
   created_at: string;
   updated_at: string;
@@ -24,6 +25,7 @@ export type BoardWithMembers = {
   id: string;
   name: string;
   description: string;
+  share_code: string;
   user_id: boolean;
   members: User[];
   created_at: string;
@@ -51,4 +53,9 @@ export async function getBoard(boardId: string, token: string): Promise<BoardWit
 export async function getBoards(token: string): Promise<GetBoardsResponse> {
   const url = `${BASE_URL}/boards/`;
   return sendGetRequest<GetBoardsResponse>(url, token);
+}
+
+export async function importBoard(shareCode: string, token: string): Promise<BoardWithMembers> {
+  const url = `${BASE_URL}/boards/import`;
+  return sendPostRequest<BoardWithMembers>(url, { share_code: shareCode }, token);
 }

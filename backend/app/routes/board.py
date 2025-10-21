@@ -5,7 +5,7 @@ from uuid import UUID
 from typing import List
 
 from app.database import get_db
-from app.schemas.board import BoardCreate, Board, BoardWithMembers, BoardsResponse, BoardMember
+from app.schemas.board import BoardCreate, Board, BoardWithMembers, BoardsResponse, BoardMember, BoardImport
 from app.models.board import Board as BoardModel, BoardMembership
 from app.models.user import User
 from app.middleware.auth import get_current_user_id
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/boards", tags=["boards"])
 
 def has_board_access(board_with_members: BoardWithMembers, user_id: str) -> bool:
     """Check if user has access to board"""
-    if str(board_with_members.user_id) == user_id:
+    if board_with_members.user_id and str(board_with_members.user_id) == user_id:
         return True
     
     for member in board_with_members.members:
@@ -53,6 +53,7 @@ def get_board_with_members(db: Session, board_id: str) -> BoardWithMembers:
         "id": board.id,
         "name": board.name,
         "description": board.description,
+        "share_code": board.share_code,
         "user_id": board.user_id,
         "created_at": board.created_at,
         "updated_at": board.updated_at,
@@ -133,3 +134,54 @@ async def get_boards(
         shared_with_members.append(board_with_members)
     
     return BoardsResponse(owned=owned_with_members, shared=shared_with_members)
+
+
+@router.post("/import", response_model=BoardWithMembers)
+async def import_board(
+    import_data: BoardImport,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """Import a board using share code"""
+    # Find board by share code
+    board = db.query(BoardModel).filter(BoardModel.share_code == import_data.share_code.upper()).first()
+    
+    if not board:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid share code"
+        )
+    
+    user_uuid = UUID(user_id)
+    
+    # Check if user is already the owner (only if board has an owner)
+    if board.user_id and board.user_id == user_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already own this board. You can access it from 'My Boards' section."
+        )
+    
+    # Check if user is already a member
+    existing_membership = db.query(BoardMembership).filter(
+        BoardMembership.board_id == board.id,
+        BoardMembership.user_id == user_uuid
+    ).first()
+    
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You are already a member of this board. You can access it from 'Shared With Me' section."
+        )
+    
+    # Add user as a member
+    membership = BoardMembership(
+        board_id=board.id,
+        user_id=user_uuid,
+        role="MEMBER"
+    )
+    
+    db.add(membership)
+    db.commit()
+    
+    # Return the board with members
+    return get_board_with_members(db, str(board.id))

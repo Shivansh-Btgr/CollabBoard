@@ -57,6 +57,9 @@ export interface BoardProps {
 export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }) => {
   const TEXT_CONNECTING = 'Connecting to board';
   const TEXT_NOT_CONNECTED = 'Not connected, try refreshing';
+  console.log('Board component loaded with initial posts:', initialPosts);
+  console.log('Board ID:', board.id);
+  console.log('Board members:', board.members);
   const [posts, setPosts] = useState<PostMap>(initialPosts);
   const [overlayText, setOverlayText] = useState(TEXT_CONNECTING);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -108,23 +111,29 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
         break;
       case EVENT_BOARD_CONNECT:
         if (success) {
+          console.log('Board connected!', { new_user: result.new_user, connected_users: result.connected_users });
           setShowOverlay(false);
           setConnectedUsers(result.connected_users.concat([result.new_user]));
         } else {
+          console.error('Board connect failed:', error_message);
           toast.error(error_message);
         }
         break;
       case EVENT_POST_CREATE:
         if (success) {
+          console.log('Post created:', result);
           addPost(result);
         } else {
+          console.error('Post create failed:', error_message);
           toast.error(error_message);
         }
         break;
       case EVENT_POST_UPDATE:
         if (success) {
+          console.log('Post updated:', result);
           updatePost({ ...result, typingBy: null });
         } else {
+          console.error('Post update failed:', error_message);
           toast.error(error_message);
         }
         break;

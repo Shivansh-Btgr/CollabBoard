@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
+from datetime import datetime
 
 from app.database import get_db
-from app.schemas.user import UserCreate, User as UserSchema, UserResponse
+from app.schemas.user import UserCreate, User as UserSchema, UserResponse, UserUpdate
 from app.models.user import User
 from app.utils.password import get_password_hash
 from app.utils.jwt import jwt_service
@@ -79,6 +80,35 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    return UserSchema.from_orm(user)
+
+
+@router.patch("/me", response_model=UserSchema)
+async def update_current_user(
+    user_data: UserUpdate,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """Update current user profile"""
+    user = db.query(User).filter(User.id == UUID(user_id)).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Update fields if provided
+    if user_data.name is not None:
+        user.name = user_data.name
+    if user_data.avatar_seed is not None:
+        user.avatar_seed = user_data.avatar_seed
+    
+    user.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(user)
     
     return UserSchema.from_orm(user)
 

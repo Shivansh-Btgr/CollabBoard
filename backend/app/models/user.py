@@ -14,6 +14,7 @@ class User(Base):
     name = Column(String(255))
     email = Column(String(255), unique=True, nullable=True)
     password = Column(String(255), nullable=True)
+    avatar_seed = Column(String(255), nullable=True)
     is_guest = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -24,7 +24,7 @@ export default function Navbar({ user }: { user: User | null }) {
               <Link href="/dashboard" className="btn btn-primary btn-sm">
                 Dashboard
               </Link>
-              <AccountMenu user={user} avatar={<Avatar id={user.id} />} />
+              <AccountMenu user={user} avatar={<Avatar id={user.avatar_seed || user.id} />} />
             </div>
           ) : (
             <AuthNav />

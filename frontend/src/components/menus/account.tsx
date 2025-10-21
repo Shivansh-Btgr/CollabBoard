@@ -6,10 +6,13 @@ import { User, deleteCurrentUser } from '@/api';
 import Cookies from 'universal-cookie';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
+import ProfileModal from '@/components/modals/profile';
 
 export default function AccountMenu({ user, avatar }: { user: User; avatar: React.ReactNode }) {
   const cookies = new Cookies();
   const router = useRouter();
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const handleLogout = async () => {
     // If user is a guest, delete their account before logging out
@@ -30,23 +33,37 @@ export default function AccountMenu({ user, avatar }: { user: User; avatar: Reac
     router.refresh();
   };
 
+  const handleProfileUpdate = () => {
+    // Force a full page reload to refresh the navbar with updated user data
+    window.location.reload();
+  };
+
   return (
-    <div className="dropdown dropdown-end">
-      <div tabIndex={0} className="btn btn-ghost normal-case">
-        <div className="w-10">{avatar}</div>
-        <span>{user?.name}</span>
-        <FaChevronDown />
+    <>
+      <div className="dropdown dropdown-end">
+        <div tabIndex={0} className="btn btn-ghost normal-case">
+          <div className="w-10">{avatar}</div>
+          <span>{user?.name}</span>
+          <FaChevronDown />
+        </div>
+        <div className="right-0 mt-3 p-2 shadow menu menu-compact dropdown-content bg-base-100 rounded-box w-52">
+          <ul className="menu menu-compact gap-1 p-3">
+            <li>
+              <button onClick={() => setIsProfileModalOpen(true)}>Profile</button>
+            </li>
+            <li>
+              <button onClick={handleLogout}>Logout</button>
+            </li>
+          </ul>
+        </div>
       </div>
-      <div className="right-0 mt-3 p-2 shadow menu menu-compact dropdown-content bg-base-100 rounded-box w-52">
-        <ul className="menu menu-compact gap-1 p-3">
-          <li>
-            <button>Profile</button>
-          </li>
-          <li>
-            <button onClick={handleLogout}>Logout</button>
-          </li>
-        </ul>
-      </div>
-    </div>
+
+      <ProfileModal
+        user={user}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onUpdate={handleProfileUpdate}
+      />
+    </>
   );
 }

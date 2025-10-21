@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaEllipsisV } from 'react-icons/fa';
+import { FaShare } from 'react-icons/fa';
 
 import { BoardWithMembers } from '@/api/board';
-import TimeAgo from './timeago';
 import MemberList from './memberlist';
+import toast from 'react-hot-toast';
 
 const Board = ({ board }: { board: BoardWithMembers }) => {
   const router = useRouter();
@@ -15,33 +15,36 @@ const Board = ({ board }: { board: BoardWithMembers }) => {
     router.push(`/boards/${board.id}`);
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(board.share_code);
+      toast.success(`Share code copied: ${board.share_code}`);
+    } catch (error) {
+      toast.error('Failed to copy share code');
+    }
+  };
+
   const BoardName = () => (
     <div>
-      <p className="text-xs text-gray-400">Board Name</p>
       <h3 className="text-lg font-bold">{board.name}</h3>
     </div>
   );
 
-  const BoardOptions = () => (
-    <div className="dropdown dropdown-left">
-      <label tabIndex={0} className="cursor-pointer">
-        <FaEllipsisV />
-      </label>
-      <ul tabIndex={0} className="dropdown-content menu p-1 shadow bg-base-100 rounded-box w-25">
-        <li>
-          <a className="text-sm">Edit</a>
-        </li>
-        <li>
-          <a className="text-sm">Archive</a>
-        </li>
-      </ul>
-    </div>
+  const ShareButton = () => (
+    <button 
+      onClick={handleShare}
+      className="btn btn-ghost btn-sm btn-circle"
+      title="Copy share code"
+    >
+      <FaShare className="text-lg" />
+    </button>
   );
 
   const TopSection = () => (
     <div className="flex justify-between items-center">
       <BoardName />
-      <BoardOptions />
+      <ShareButton />
     </div>
   );
 
@@ -55,11 +58,6 @@ const Board = ({ board }: { board: BoardWithMembers }) => {
   const BottomSection = () => (
     <>
       <div className="flex justify-between items-center">
-        <div className="flex space-x-2">
-          <span className="bg-gray-200 text-xs text-gray-600 p-2 rounded">
-            Created <TimeAgo timestamp={board.created_at} />
-          </span>
-        </div>
         <button onClick={handleClick} className="btn btn-secondary btn-sm btn-outline">
           Open
         </button>
@@ -71,7 +69,7 @@ const Board = ({ board }: { board: BoardWithMembers }) => {
   );
 
   return (
-    <div className="card card-bordered bg-white w-[325px]">
+    <div className="card card-bordered bg-gray-50 w-[325px]">
       <div className="card-body">
         <TopSection />
         <MidSection />

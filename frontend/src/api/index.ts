@@ -35,7 +35,8 @@ export async function sendPostRequest<T>(url: string, body: object, authToken?: 
       try {
         const errorData = await response.json();
         if (errorData && typeof errorData === 'object') {
-          message = (errorData.message as string) || message;
+          // FastAPI returns errors in 'detail' field
+          message = (errorData.detail as string) || (errorData.message as string) || message;
           status = (errorData.status as number) || status;
         }
       } catch (e) {
@@ -74,7 +75,8 @@ export async function sendGetRequest<T>(url: string, authToken?: string): Promis
       try {
         const errorData = await response.json();
         if (errorData && typeof errorData === 'object') {
-          message = (errorData.message as string) || message;
+          // FastAPI returns errors in 'detail' field
+          message = (errorData.detail as string) || (errorData.message as string) || message;
           status = (errorData.status as number) || status;
         }
       } catch (e) {

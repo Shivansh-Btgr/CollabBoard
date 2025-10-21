@@ -6,6 +6,7 @@ export type User = {
   name: string;
   email: string;
   is_guest: boolean;
+  avatar_seed?: string;
   created_at: string;
   updated_at: string;
 };
@@ -53,4 +54,28 @@ export async function deleteCurrentUser(jwtToken: string): Promise<void> {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to delete user');
   }
+}
+
+export type UpdateUserParams = {
+  name?: string;
+  avatar_seed?: string;
+};
+
+export async function updateUser(params: UpdateUserParams, jwtToken: string): Promise<User> {
+  const url = `${BASE_URL}/users/me`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwtToken}`,
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to update user');
+  }
+
+  return response.json();
 }

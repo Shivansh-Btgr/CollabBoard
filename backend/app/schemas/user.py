@@ -7,11 +7,17 @@ from uuid import UUID
 class UserBase(BaseModel):
     name: str
     email: Optional[EmailStr] = None
+    avatar_seed: Optional[str] = None
 
 
 class UserCreate(UserBase):
     password: Optional[str] = None
     is_guest: bool = False
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    avatar_seed: Optional[str] = None
 
 
 class User(UserBase):
