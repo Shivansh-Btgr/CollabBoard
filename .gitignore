@@ -1,3 +1,28 @@
 tmp/
 dist/output.css
 .DS_Store
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# Node
+node_modules/
+
+# Python
+venv/
+.venv/
+__pycache__/
+
+# Next.js
+/.next/
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/

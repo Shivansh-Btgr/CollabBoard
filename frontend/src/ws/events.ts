@@ -1,12 +1,14 @@
 import {
   EVENT_BOARD_CONNECT,
+  EVENT_BOARD_DISCONNECT,
   EVENT_POST_CREATE,
   EVENT_POST_DELETE,
+  EVENT_POST_DRAG,
   EVENT_POST_FOCUS,
   EVENT_POST_UPDATE,
   EVENT_USER_AUTHENTICATE,
 } from '@/constants';
-import { CreatePostParams, DeletePostParams, FocusPostParams, Send } from './types';
+import { CreatePostParams, DeletePostParams, DisconnectBoardParams, DragPostParams, FocusPostParams, Send } from './types';
 import { Post } from '@/api/post';
 
 export const buildMessageRequest = (event: string, params: object): string => {
@@ -44,5 +46,15 @@ export const deletePost = (params: DeletePostParams, send: Send) => {
 
 export const focusPost = (params: FocusPostParams, send: Send) => {
   const message = buildMessageRequest(EVENT_POST_FOCUS, params);
+  send(message);
+};
+
+export const dragPost = (params: DragPostParams, send: Send) => {
+  const message = buildMessageRequest(EVENT_POST_DRAG, params);
+  send(message);
+};
+
+export const disconnectBoard = (params: DisconnectBoardParams, send: Send) => {
+  const message = buildMessageRequest(EVENT_BOARD_DISCONNECT, params);
   send(message);
 };

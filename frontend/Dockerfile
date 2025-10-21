@@ -1,20 +1,45 @@
+FROM node:18-alpine AS base
 
-FROM node:18-alpine
-
-# Set the working directory in the Docker container
+# Install dependencies only when needed
+FROM base AS deps
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package files
 COPY package*.json ./
+RUN npm ci
 
-# Install all dependencies
-RUN npm install
-
-# Copy the current directory contents into the container at /app
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Make port 3000 available to the outside world
+# Build Next.js application
+RUN npm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create a non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy necessary files
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Set the correct ownership
+RUN chown -R nextjs:nodejs /app
+
+USER nextjs
+
 EXPOSE 3000
 
-# Run the application when the docker is launched
-CMD [ "npm", "run", "dev" ]
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

@@ -32,7 +32,6 @@ export default function Playground() {
 }
 
 const Post = React.memo(({ post }: { post: Post }) => {
-  console.log(`Render Post ID: ${post.id}`);
   return <div>{`Post ${post.id}`}</div>;
 });
 

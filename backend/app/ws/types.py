@@ -6,10 +6,16 @@ from uuid import UUID
 # Event constants
 EVENT_USER_AUTHENTICATE = "user.authenticate"
 EVENT_BOARD_CONNECT = "board.connect"
+EVENT_BOARD_DISCONNECT = "board.disconnect"
 EVENT_POST_CREATE = "post.create"
 EVENT_POST_UPDATE = "post.update"
 EVENT_POST_DELETE = "post.delete"
 EVENT_POST_FOCUS = "post.focus"
+EVENT_POST_DRAG = "post.drag"
+EVENT_VOICE_OFFER = "voice.offer"
+EVENT_VOICE_ANSWER = "voice.answer"
+EVENT_VOICE_ICE_CANDIDATE = "voice.ice_candidate"
+EVENT_VOICE_MUTE = "voice.mute"
 
 # Close reasons
 CLOSE_REASON_MISSING_EVENT = "The event field is missing."
@@ -37,6 +43,10 @@ class ParamsUserAuthenticate(BaseModel):
 
 
 class ParamsBoardConnect(BaseModel):
+    board_id: str
+
+
+class ParamsBoardDisconnect(BaseModel):
     board_id: str
 
 
@@ -71,6 +81,36 @@ class ParamsPostFocus(BaseModel):
     board_id: str
 
 
+class ParamsPostDrag(BaseModel):
+    post_id: str
+    board_id: str
+    pos_x: int = Field(..., ge=0)
+    pos_y: int = Field(..., ge=0)
+
+
+class ParamsVoiceOffer(BaseModel):
+    board_id: str
+    target_user_id: str
+    offer: dict  # SDP offer
+
+
+class ParamsVoiceAnswer(BaseModel):
+    board_id: str
+    target_user_id: str
+    answer: dict  # SDP answer
+
+
+class ParamsVoiceIceCandidate(BaseModel):
+    board_id: str
+    target_user_id: str
+    candidate: dict  # ICE candidate
+
+
+class ParamsVoiceMute(BaseModel):
+    board_id: str
+    is_muted: bool
+
+
 # Response schemas
 class WSResponse(BaseModel):
     event: str
@@ -87,6 +127,11 @@ class ResultBoardConnect(BaseModel):
     board_id: str
     new_user: dict
     connected_users: List[dict]
+
+
+class ResultBoardDisconnect(BaseModel):
+    board_id: str
+    user: dict
 
 
 class ResultPostCreate(BaseModel):
@@ -108,3 +153,30 @@ class ResultPostDelete(BaseModel):
 class ResultPostFocus(BaseModel):
     post_id: str
     user: dict
+
+
+class ResultPostDrag(BaseModel):
+    post_id: str
+    pos_x: int
+    pos_y: int
+    user: dict
+
+
+class ResultVoiceOffer(BaseModel):
+    from_user_id: str
+    offer: dict
+
+
+class ResultVoiceAnswer(BaseModel):
+    from_user_id: str
+    answer: dict
+
+
+class ResultVoiceIceCandidate(BaseModel):
+    from_user_id: str
+    candidate: dict
+
+
+class ResultVoiceMute(BaseModel):
+    user_id: str
+    is_muted: bool

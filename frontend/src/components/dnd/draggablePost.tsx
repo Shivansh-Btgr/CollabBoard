@@ -1,6 +1,6 @@
 'use client';
 
-import { CSSProperties, FC, useState } from 'react';
+import { CSSProperties, FC, useState, useRef, useEffect } from 'react';
 import { memo } from 'react';
 import type { DragSourceMonitor } from 'react-dnd';
 import { useDrag } from 'react-dnd';
@@ -10,6 +10,7 @@ import { ItemTypes } from './itemTypes';
 import { Send } from '@/ws/types';
 import { BoardWithMembers, User } from '@/api';
 import { PostUI } from './board';
+import { dragPost } from '@/ws/events';
 
 type DraggablePostProps = {
   user: User;
@@ -19,8 +20,9 @@ type DraggablePostProps = {
 } & PostUI;
 
 export const DraggablePost: FC<DraggablePostProps> = memo(function DraggablePost(props) {
-  const { id, content, pos_x, pos_y, z_index, typingBy } = props;
+  const { id, content, pos_x, pos_y, z_index, typingBy, board, send } = props;
   const [isHovered, setIsHovered] = useState(false);
+  const dragIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -34,13 +36,44 @@ export const DraggablePost: FC<DraggablePostProps> = memo(function DraggablePost
     () => ({
       type: ItemTypes.POST,
       item: { id, pos_x, pos_y, content },
-      collect: (monitor: DragSourceMonitor) => ({
-        isDragging: monitor.isDragging(),
-      }),
+      collect: (monitor: DragSourceMonitor) => {
+        const isDragging = monitor.isDragging();
+        
+        // Send drag updates while dragging
+        if (isDragging && !dragIntervalRef.current) {
+          dragIntervalRef.current = setInterval(() => {
+            const offset = monitor.getDifferenceFromInitialOffset();
+            if (offset) {
+              const newPosX = Math.max(pos_x + offset.x, 0);
+              const newPosY = Math.max(pos_y + offset.y, 0);
+              dragPost({ 
+                post_id: id, 
+                board_id: board.id, 
+                pos_x: Math.round(newPosX), 
+                pos_y: Math.round(newPosY) 
+              }, send);
+            }
+          }, 50); // Send updates every 50ms
+        } else if (!isDragging && dragIntervalRef.current) {
+          clearInterval(dragIntervalRef.current);
+          dragIntervalRef.current = null;
+        }
+        
+        return { isDragging };
+      },
       canDrag: !typingBy,
     }),
-    [id, pos_x, pos_y, content]
+    [id, pos_x, pos_y, content, board.id, send]
   );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (dragIntervalRef.current) {
+        clearInterval(dragIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div

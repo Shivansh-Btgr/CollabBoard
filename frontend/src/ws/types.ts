@@ -17,4 +17,15 @@ export type FocusPostParams = {
   board_id: string;
 };
 
+export type DragPostParams = {
+  post_id: string;
+  board_id: string;
+  pos_x: number;
+  pos_y: number;
+};
+
+export type DisconnectBoardParams = {
+  board_id: string;
+};
+
 export type Send = (data: string) => void;

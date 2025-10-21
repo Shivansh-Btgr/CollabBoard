@@ -1,6 +1,12 @@
 export const EVENT_USER_AUTHENTICATE = 'user.authenticate';
 export const EVENT_BOARD_CONNECT = 'board.connect';
+export const EVENT_BOARD_DISCONNECT = 'board.disconnect';
 export const EVENT_POST_CREATE = 'post.create';
 export const EVENT_POST_UPDATE = 'post.update';
 export const EVENT_POST_DELETE = 'post.delete';
 export const EVENT_POST_FOCUS = 'post.focus';
+export const EVENT_POST_DRAG = 'post.drag';
+export const EVENT_VOICE_OFFER = 'voice.offer';
+export const EVENT_VOICE_ANSWER = 'voice.answer';
+export const EVENT_VOICE_ICE_CANDIDATE = 'voice.ice_candidate';
+export const EVENT_VOICE_MUTE = 'voice.mute';

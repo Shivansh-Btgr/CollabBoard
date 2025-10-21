@@ -36,7 +36,8 @@ async function fetchBoardData(boardId: string) {
   }
 }
 
-export default async function BoardPage({ params: { id: boardId } }: { params: { id: string } }) {
+export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: boardId } = await params;
   const posts = await fetchPostsData(boardId);
   const board = await fetchBoardData(boardId);
   return (

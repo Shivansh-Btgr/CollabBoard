@@ -16,7 +16,6 @@ export const useWebSocket = (url: string) => {
     ws.current = new WebSocket(url);
 
     ws.current.onopen = (event) => {
-      console.log(`Connected: ${url}`);
       setReadyState(ws.current?.readyState);
     };
 

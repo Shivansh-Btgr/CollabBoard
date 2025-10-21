@@ -7,12 +7,15 @@ from uuid import UUID
 from app.ws.hub import Hub, Client
 from app.ws.types import (
     WSRequest, WSResponse,
-    ParamsUserAuthenticate, ParamsBoardConnect, ParamsPostCreate,
-    ParamsPostUpdate, ParamsPostDelete, ParamsPostFocus,
-    ResultUserAuthenticate, ResultBoardConnect, ResultPostCreate,
-    ResultPostUpdate, ResultPostDelete, ResultPostFocus,
-    EVENT_USER_AUTHENTICATE, EVENT_BOARD_CONNECT,
-    EVENT_POST_CREATE, EVENT_POST_UPDATE, EVENT_POST_DELETE, EVENT_POST_FOCUS,
+    ParamsUserAuthenticate, ParamsBoardConnect, ParamsBoardDisconnect, ParamsPostCreate,
+    ParamsPostUpdate, ParamsPostDelete, ParamsPostFocus, ParamsPostDrag,
+    ParamsVoiceOffer, ParamsVoiceAnswer, ParamsVoiceIceCandidate, ParamsVoiceMute,
+    ResultUserAuthenticate, ResultBoardConnect, ResultBoardDisconnect, ResultPostCreate,
+    ResultPostUpdate, ResultPostDelete, ResultPostFocus, ResultPostDrag,
+    ResultVoiceOffer, ResultVoiceAnswer, ResultVoiceIceCandidate, ResultVoiceMute,
+    EVENT_USER_AUTHENTICATE, EVENT_BOARD_CONNECT, EVENT_BOARD_DISCONNECT,
+    EVENT_POST_CREATE, EVENT_POST_UPDATE, EVENT_POST_DELETE, EVENT_POST_FOCUS, EVENT_POST_DRAG,
+    EVENT_VOICE_OFFER, EVENT_VOICE_ANSWER, EVENT_VOICE_ICE_CANDIDATE, EVENT_VOICE_MUTE,
     CLOSE_REASON_BAD_EVENT, CLOSE_REASON_BAD_PARAMS,
     CLOSE_REASON_UNAUTHORIZED, CLOSE_REASON_INTERNAL_SERVER,
     ERR_MSG_INVALID_JWT, ERR_MSG_BOARD_NOT_FOUND, ERR_MSG_UNAUTHORIZED
@@ -84,6 +87,8 @@ class WebSocketManager:
             await self.handle_user_authenticate(client, request)
         elif request.event == EVENT_BOARD_CONNECT:
             await self.handle_board_connect(client, request)
+        elif request.event == EVENT_BOARD_DISCONNECT:
+            await self.handle_board_disconnect(client, request)
         elif request.event == EVENT_POST_CREATE:
             await self.handle_post_create(client, request)
         elif request.event == EVENT_POST_UPDATE:
@@ -92,6 +97,16 @@ class WebSocketManager:
             await self.handle_post_delete(client, request)
         elif request.event == EVENT_POST_FOCUS:
             await self.handle_post_focus(client, request)
+        elif request.event == EVENT_POST_DRAG:
+            await self.handle_post_drag(client, request)
+        elif request.event == EVENT_VOICE_OFFER:
+            await self.handle_voice_offer(client, request)
+        elif request.event == EVENT_VOICE_ANSWER:
+            await self.handle_voice_answer(client, request)
+        elif request.event == EVENT_VOICE_ICE_CANDIDATE:
+            await self.handle_voice_ice_candidate(client, request)
+        elif request.event == EVENT_VOICE_MUTE:
+            await self.handle_voice_mute(client, request)
         else:
             logger.warning(f"Unsupported event: {request.event}")
     
@@ -205,6 +220,41 @@ class WebSocketManager:
             await client.send(response.json())
         finally:
             db.close()
+    
+    async def handle_board_disconnect(self, client: Client, request: WSRequest):
+        """Handle user disconnecting from a board"""
+        if not client.user:
+            return
+        
+        try:
+            params = ParamsBoardDisconnect(**request.params)
+        except Exception:
+            return
+        
+        board_id = params.board_id
+        
+        # Remove client from hub
+        if board_id in self.board_hubs:
+            hub = self.board_hubs[board_id]
+            await hub.unregister(client)
+            
+            # Broadcast disconnect to remaining clients
+            response = WSResponse(
+                event=EVENT_BOARD_DISCONNECT,
+                success=True,
+                result=ResultBoardDisconnect(
+                    board_id=board_id,
+                    user=client.user
+                ).dict()
+            )
+            await hub.broadcast(response.json())
+            
+            # Remove board from client's boards
+            if board_id in client.boards:
+                del client.boards[board_id]
+            
+            # Clean up empty hub
+            self.remove_hub_if_empty(board_id)
     
     async def handle_post_create(self, client: Client, request: WSRequest):
         """Handle post creation"""
@@ -427,6 +477,156 @@ class WebSocketManager:
         hub = self.board_hubs.get(board_id)
         if hub:
             await hub.broadcast(response.json(), exclude=client.websocket)
+    
+    async def handle_post_drag(self, client: Client, request: WSRequest):
+        """Handle post drag (real-time position updates while dragging)"""
+        if not client.user:
+            await client.close(code=1008, reason=CLOSE_REASON_UNAUTHORIZED)
+            return
+        
+        try:
+            params = ParamsPostDrag(**request.params)
+        except Exception as e:
+            logger.error(f"Invalid post drag params: {e}")
+            return
+        
+        board_id = params.board_id
+        
+        if board_id not in client.boards or not client.boards[board_id]:
+            return
+        
+        # Broadcast drag event to other clients (no database write)
+        response = WSResponse(
+            event=EVENT_POST_DRAG,
+            success=True,
+            result=ResultPostDrag(
+                post_id=params.post_id,
+                pos_x=params.pos_x,
+                pos_y=params.pos_y,
+                user=client.user
+            ).dict()
+        )
+        
+        hub = self.board_hubs.get(board_id)
+        if hub:
+            await hub.broadcast(response.json(), exclude=client.websocket)
+    
+    async def handle_voice_offer(self, client: Client, request: WSRequest):
+        """Relay WebRTC offer to target user"""
+        if not client.user:
+            return
+        
+        try:
+            params = ParamsVoiceOffer(**request.params)
+        except Exception as e:
+            logger.error(f"Invalid voice offer params: {e}")
+            return
+        
+        board_id = params.board_id
+        hub = self.board_hubs.get(board_id)
+        if not hub:
+            return
+        
+        # Find target client and send offer
+        for websocket, target_client in hub.clients.items():
+            if target_client.user and target_client.user["id"] == params.target_user_id:
+                response = WSResponse(
+                    event=EVENT_VOICE_OFFER,
+                    success=True,
+                    result=ResultVoiceOffer(
+                        from_user_id=client.user["id"],
+                        offer=params.offer
+                    ).dict()
+                )
+                await target_client.send(response.json())
+                break
+    
+    async def handle_voice_answer(self, client: Client, request: WSRequest):
+        """Relay WebRTC answer to target user"""
+        if not client.user:
+            return
+        
+        try:
+            params = ParamsVoiceAnswer(**request.params)
+        except Exception as e:
+            logger.error(f"Invalid voice answer params: {e}")
+            return
+        
+        board_id = params.board_id
+        hub = self.board_hubs.get(board_id)
+        if not hub:
+            return
+        
+        # Find target client and send answer
+        for websocket, target_client in hub.clients.items():
+            if target_client.user and target_client.user["id"] == params.target_user_id:
+                response = WSResponse(
+                    event=EVENT_VOICE_ANSWER,
+                    success=True,
+                    result=ResultVoiceAnswer(
+                        from_user_id=client.user["id"],
+                        answer=params.answer
+                    ).dict()
+                )
+                await target_client.send(response.json())
+                break
+    
+    async def handle_voice_ice_candidate(self, client: Client, request: WSRequest):
+        """Relay ICE candidate to target user"""
+        if not client.user:
+            return
+        
+        try:
+            params = ParamsVoiceIceCandidate(**request.params)
+        except Exception as e:
+            logger.error(f"Invalid ICE candidate params: {e}")
+            return
+        
+        board_id = params.board_id
+        hub = self.board_hubs.get(board_id)
+        if not hub:
+            return
+        
+        # Find target client and send ICE candidate
+        for websocket, target_client in hub.clients.items():
+            if target_client.user and target_client.user["id"] == params.target_user_id:
+                response = WSResponse(
+                    event=EVENT_VOICE_ICE_CANDIDATE,
+                    success=True,
+                    result=ResultVoiceIceCandidate(
+                        from_user_id=client.user["id"],
+                        candidate=params.candidate
+                    ).dict()
+                )
+                await target_client.send(response.json())
+                break
+    
+    async def handle_voice_mute(self, client: Client, request: WSRequest):
+        """Broadcast mute status to all users in board"""
+        if not client.user:
+            return
+        
+        try:
+            params = ParamsVoiceMute(**request.params)
+        except Exception as e:
+            logger.error(f"Invalid voice mute params: {e}")
+            return
+        
+        board_id = params.board_id
+        hub = self.board_hubs.get(board_id)
+        if not hub:
+            return
+        
+        # Broadcast mute status
+        response = WSResponse(
+            event=EVENT_VOICE_MUTE,
+            success=True,
+            result=ResultVoiceMute(
+                user_id=client.user["id"],
+                is_muted=params.is_muted
+            ).dict()
+        )
+        await hub.broadcast(response.json())
 
 
 # Global WebSocket manager instance

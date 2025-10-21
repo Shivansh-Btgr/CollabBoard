@@ -1,9 +1,10 @@
 'use client';
 
 import update from 'immutability-helper';
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useRef } from 'react';
 import { useState } from 'react';
 import { useDrop } from 'react-dnd';
+import html2canvas from 'html2canvas';
 
 import { DraggablePost } from './draggablePost';
 import type { DragItem } from './interfaces';
@@ -14,11 +15,17 @@ import {
   BOARD_SPACE_ADD,
   COOKIE_NAME_JWT_TOKEN,
   EVENT_BOARD_CONNECT,
+  EVENT_BOARD_DISCONNECT,
   EVENT_POST_CREATE,
   EVENT_POST_DELETE,
+  EVENT_POST_DRAG,
   EVENT_POST_FOCUS,
   EVENT_POST_UPDATE,
   EVENT_USER_AUTHENTICATE,
+  EVENT_VOICE_OFFER,
+  EVENT_VOICE_ANSWER,
+  EVENT_VOICE_ICE_CANDIDATE,
+  EVENT_VOICE_MUTE,
   NAVBAR_HEIGHT,
   POST_COLORS,
   POST_HEIGHT,
@@ -27,11 +34,13 @@ import {
   WS_URL,
 } from '@/constants';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useVoiceChat } from '@/hooks/useVoiceChat';
 import Cookies from 'universal-cookie';
 import {
   authenticateUser as authenticateUserWS,
   connectBoard as connectBoardWS,
   createPost as createPostWS,
+  disconnectBoard as disconnectBoardWS,
   updatePost as updatePostWS,
 } from '@/ws/events';
 import { Overlay } from '../overlay';
@@ -57,9 +66,6 @@ export interface BoardProps {
 export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }) => {
   const TEXT_CONNECTING = 'Connecting to board';
   const TEXT_NOT_CONNECTED = 'Not connected, try refreshing';
-  console.log('Board component loaded with initial posts:', initialPosts);
-  console.log('Board ID:', board.id);
-  console.log('Board members:', board.members);
   const [posts, setPosts] = useState<PostMap>(initialPosts);
   const [overlayText, setOverlayText] = useState(TEXT_CONNECTING);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -70,11 +76,27 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
   const [colorSetting, setColorSetting] = useState(pickColor(posts));
   const { data, error, send, readyState } = useWebSocket(WS_URL);
   const cookies = new Cookies();
+  const boardRef = useRef<HTMLDivElement>(null);
+  
+  // Voice chat hook
+  const voiceChat = useVoiceChat(
+    board.id,
+    user?.id || '',
+    send,
+    connectedUsers
+  );
 
   useEffect(() => {
     // Scroll to the top left portion of the page
     window.scrollTo(0, 0);
-  }, []);
+
+    // Cleanup: Send disconnect message when leaving the board
+    return () => {
+      if (readyState === WebSocket.OPEN) {
+        disconnectBoardWS({ board_id: board.id }, send);
+      }
+    };
+  }, [board.id, send, readyState]);
 
   // Expands the board based on post locations
   useEffect(() => {
@@ -111,29 +133,23 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
         break;
       case EVENT_BOARD_CONNECT:
         if (success) {
-          console.log('Board connected!', { new_user: result.new_user, connected_users: result.connected_users });
           setShowOverlay(false);
           setConnectedUsers(result.connected_users.concat([result.new_user]));
         } else {
-          console.error('Board connect failed:', error_message);
           toast.error(error_message);
         }
         break;
       case EVENT_POST_CREATE:
         if (success) {
-          console.log('Post created:', result);
           addPost(result.post);
         } else {
-          console.error('Post create failed:', error_message);
           toast.error(error_message);
         }
         break;
       case EVENT_POST_UPDATE:
         if (success) {
-          console.log('Post updated:', result);
           updatePost({ ...result.post, typingBy: null });
         } else {
-          console.error('Post update failed:', error_message);
           toast.error(error_message);
         }
         break;
@@ -153,6 +169,49 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
           toast.error(error_message);
         }
         break;
+      case EVENT_POST_DRAG:
+        if (success) {
+          // Update position temporarily while dragging (from other users)
+          if (result.user.id != user?.id) {
+            updatePost({ id: result.post_id, pos_x: result.pos_x, pos_y: result.pos_y });
+          }
+        }
+        break;
+      case EVENT_BOARD_DISCONNECT:
+        if (success) {
+          setConnectedUsers((prev) => prev.filter((u: any) => u.id !== result.user.id));
+        }
+        break;
+      case EVENT_VOICE_OFFER:
+        if (success) {
+          voiceChat.handleOffer(result.from_user_id, result.offer);
+        }
+        break;
+      case EVENT_VOICE_ANSWER:
+        if (success) {
+          voiceChat.handleAnswer(result.from_user_id, result.answer);
+        }
+        break;
+      case EVENT_VOICE_ICE_CANDIDATE:
+        if (success) {
+          voiceChat.handleIceCandidate(result.from_user_id, result.candidate);
+        }
+        break;
+      case EVENT_VOICE_MUTE:
+        if (success) {
+          if (result.user_id !== user?.id) {
+            voiceChat.setMutedUsers((prev) => {
+              const newSet = new Set(prev);
+              if (result.is_muted) {
+                newSet.add(result.user_id);
+              } else {
+                newSet.delete(result.user_id);
+              }
+              return newSet;
+            });
+          }
+        }
+        break;
 
       default:
         break;
@@ -161,10 +220,8 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
 
   // handleDoubleClick creates a new post
   const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    console.log('Double click detected!', event.target, event.currentTarget);
     if (event.target === event.currentTarget) {
       const { offsetX, offsetY } = event.nativeEvent;
-      console.log('Creating post at:', offsetX, offsetY);
       const newZIndex = highestZ + 1;
       const params = {
         board_id: board.id,
@@ -175,11 +232,8 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
         height: POST_HEIGHT,
         z_index: highestZ + 1,
       };
-      console.log('Sending createPostWS with params:', params);
       createPostWS(params, send);
       setHighestZ(newZIndex);
-    } else {
-      console.log('Double click on wrong target, ignoring');
     }
   };
 
@@ -197,9 +251,41 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
       height: POST_HEIGHT,
       z_index: newZIndex,
     };
-    console.log('Creating post via button at:', defaultX, defaultY);
     createPostWS(params, send);
     setHighestZ(newZIndex);
+  };
+
+  // handleExportBoard exports the board as PNG
+  const handleExportBoard = async () => {
+    if (!boardRef.current) return;
+    
+    try {
+      toast.loading('Exporting board...');
+      
+      // Capture the board element
+      const canvas = await html2canvas(boardRef.current, {
+        logging: false,
+        useCORS: true,
+      });
+      
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = `board-${board.name || board.id}-${new Date().toISOString().split('T')[0]}.png`;
+          link.href = url;
+          link.click();
+          URL.revokeObjectURL(url);
+          toast.dismiss();
+          toast.success('Board exported successfully!');
+        }
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.dismiss();
+      toast.error('Failed to export board');
+    }
   };
 
   const addPost = (post: PostUI) => {
@@ -262,24 +348,48 @@ export const Board: FC<BoardProps> = ({ board, snapToGrid, posts: initialPosts }
   return (
     <div className="flex">
       <Overlay show={showOverlay || !user} text={overlayText} />
-      {user ? <Sidebar board={board} width={SIDEBAR_WIDTH} user={user} connectedUsers={connectedUsers} /> : null}
+      {user ? (
+        <Sidebar 
+          board={board} 
+          width={SIDEBAR_WIDTH} 
+          user={user} 
+          connectedUsers={connectedUsers}
+          voiceChat={voiceChat}
+        />
+      ) : null}
       
-      {/* Create Post Button */}
+      {/* Action Buttons */}
       {user && !showOverlay && (
-        <button
-          onClick={handleCreatePost}
-          className="fixed bottom-8 right-8 btn btn-primary btn-lg btn-circle shadow-xl hover:scale-110 transition-transform"
-          style={{ zIndex: 10001 }}
-          title="Create new post"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+        <div className="fixed bottom-8 right-8 flex flex-col gap-3" style={{ zIndex: 10001 }}>
+          {/* Export Board Button */}
+          <button
+            onClick={handleExportBoard}
+            className="btn btn-secondary btn-lg btn-circle shadow-xl hover:scale-110 transition-transform"
+            title="Export board as PNG"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </button>
+          
+          {/* Create Post Button */}
+          <button
+            onClick={handleCreatePost}
+            className="btn btn-primary btn-lg btn-circle shadow-xl hover:scale-110 transition-transform"
+            title="Create new post"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
       )}
       
       <div
-        ref={drop}
+        ref={(node) => {
+          drop(node);
+          (boardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }}
         className="relative sketchbook-bg"
         style={{
           minHeight: `calc(100vh - ${NAVBAR_HEIGHT})`,
