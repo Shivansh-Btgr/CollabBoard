@@ -1,0 +1,44 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - 3000:3000
+    # volumes:
+    #   - ./frontend:/app
+    depends_on:
+      - backend
+    env_file:
+      - frontend/.env
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - 8080:8080
+    env_file:
+      - backend/.env
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=boards
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: "boards"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-data:/var/lib/postgresql/data
+volumes:
+  db-data:
