@@ -1,6 +1,6 @@
 'use client';
 
-import { login } from '@/api';
+import { login, createUser } from '@/api';
 import { COOKIE_NAME_JWT_TOKEN } from '@/constants';
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, FormEvent, useState } from 'react';
@@ -11,6 +11,7 @@ export default function SignInForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
 
   const cookies = new Cookies();
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function SignInForm() {
 
     try {
       const { token } = await login({ email, password });
-      toast.success('Successfully signed in');
+      toast.success('Successfully logged in');
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 30);
       cookies.set(COOKIE_NAME_JWT_TOKEN, token, { path: '/', expires: expirationDate });
@@ -39,6 +40,31 @@ export default function SignInForm() {
       toast.error(String(error));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setIsGuestLoading(true);
+
+    try {
+      // Generate a unique guest name using timestamp
+      const guestName = `Guest_${Date.now()}`;
+      
+      const { jwt_token: token } = await createUser({ 
+        name: guestName,
+        isGuest: true 
+      });
+      
+      toast.success('Logged in as guest');
+      const expirationDate = new Date();
+      expirationDate.setDate(expirationDate.getDate() + 30);
+      cookies.set(COOKIE_NAME_JWT_TOKEN, token, { path: '/', expires: expirationDate });
+      // Use window.location to force a full page reload so server-side can read the cookie
+      window.location.href = '/dashboard';
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setIsGuestLoading(false);
     }
   };
 
@@ -72,9 +98,18 @@ export default function SignInForm() {
       </div>
       <div className="form-control mt-6">
         <button type="submit" className="btn btn-primary" disabled={isLoading}>
-          {isLoading ? 'Signing in...' : 'Sign in'}
+          {isLoading ? 'Logging in...' : 'Login'}
         </button>
       </div>
+      <div className="divider">OR</div>
+      <button 
+        type="button" 
+        onClick={handleGuestLogin} 
+        className="btn btn-secondary w-full"
+        disabled={isGuestLoading}
+      >
+        {isGuestLoading ? 'Logging in...' : 'Continue as guest'}
+      </button>
     </form>
   );
 }

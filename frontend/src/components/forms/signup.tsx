@@ -91,13 +91,9 @@ export default function SignUpForm() {
       </div>
       <div className="form-control mt-6">
         <button type="submit" className="btn btn-secondary" disabled={isLoading}>
-          {isLoading ? 'Signing in...' : 'Sign up'}
+          {isLoading ? 'Signing up...' : 'Sign up'}
         </button>
       </div>
-      <div className="divider">OR</div>
-      <Link href="/auth/signup/guest" className="btn btn-primary w-full">
-        Continue as guest
-      </Link>
     </form>
   );
 }

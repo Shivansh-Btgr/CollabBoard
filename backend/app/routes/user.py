@@ -19,15 +19,31 @@ async def create_user(
     db: Session = Depends(get_db)
 ):
     """Create a new user"""
-    # Hash password
-    hashed_password = get_password_hash(user_data.password)
+    # Validate guest users
+    if user_data.is_guest:
+        # Guest users don't need email or password
+        hashed_password = None
+    else:
+        # Regular users need email and password
+        if not user_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is required for non-guest users"
+            )
+        if not user_data.password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password is required for non-guest users"
+            )
+        # Hash password
+        hashed_password = get_password_hash(user_data.password)
     
     # Create user
     db_user = User(
         name=user_data.name,
         email=user_data.email,
         password=hashed_password,
-        is_guest=False
+        is_guest=user_data.is_guest
     )
     
     try:
@@ -65,3 +81,30 @@ async def get_current_user(
         )
     
     return UserSchema.from_orm(user)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_user(
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """Delete current user (only for guest users)"""
+    user = db.query(User).filter(User.id == UUID(user_id)).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Only allow guest users to be deleted
+    if not user.is_guest:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only guest users can be deleted"
+        )
+    
+    db.delete(user)
+    db.commit()
+    
+    return None

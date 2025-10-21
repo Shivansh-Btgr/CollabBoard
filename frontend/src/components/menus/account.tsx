@@ -2,18 +2,32 @@
 import { FaChevronDown } from 'react-icons/fa';
 
 import { COOKIE_NAME_JWT_TOKEN } from '@/constants';
-import { User } from '@/api';
+import { User, deleteCurrentUser } from '@/api';
 import Cookies from 'universal-cookie';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 export default function AccountMenu({ user, avatar }: { user: User; avatar: React.ReactNode }) {
   const cookies = new Cookies();
   const router = useRouter();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // If user is a guest, delete their account before logging out
+    if (user.is_guest) {
+      try {
+        const token = cookies.get(COOKIE_NAME_JWT_TOKEN);
+        if (token) {
+          await deleteCurrentUser(token);
+        }
+      } catch (error) {
+        console.error('Failed to delete guest user:', error);
+        // Continue with logout even if deletion fails
+      }
+    }
+    
     cookies.remove(COOKIE_NAME_JWT_TOKEN);
-    router.refresh();
     router.push('/');
+    router.refresh();
   };
 
   return (

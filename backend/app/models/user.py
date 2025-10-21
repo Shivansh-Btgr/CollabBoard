@@ -12,8 +12,8 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255))
-    email = Column(String(255), unique=True)
-    password = Column(String(255))
+    email = Column(String(255), unique=True, nullable=True)
+    password = Column(String(255), nullable=True)
     is_guest = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

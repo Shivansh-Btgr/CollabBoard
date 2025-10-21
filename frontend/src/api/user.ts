@@ -38,3 +38,19 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
   };
   return sendPostRequest<CreateUserResponse>(url, body);
 }
+
+export async function deleteCurrentUser(jwtToken: string): Promise<void> {
+  const url = `${BASE_URL}/users/me`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwtToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to delete user');
+  }
+}

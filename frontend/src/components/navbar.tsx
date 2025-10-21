@@ -39,7 +39,7 @@ function AuthNav() {
   return (
     <div className="space-x-2">
       <Link href="/auth/signin" className="btn btn-secondary btn-outline">
-        Sign in
+        Login
       </Link>
       <Link href="/auth/signup" className="btn btn-primary">
         Sign up

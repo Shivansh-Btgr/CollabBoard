@@ -10,7 +10,8 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None
+    is_guest: bool = False
 
 
 class User(UserBase):
